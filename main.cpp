@@ -4,6 +4,7 @@
 #include <optional>
 #include <fstream>
 #include <vector>
+#include <array>
 
 typedef struct {
   std::string input_data_filepath;
@@ -17,6 +18,53 @@ typedef struct {
   float a_act;
   float b_act;
 } DataPoint;
+
+typedef struct {
+  float pam;
+  float pab;
+  float pbm;
+  float pbb;
+
+  std::array<float, 2> data;
+  std::array<float, 2> reluData;
+  std::array<float, 2> softData;
+  std::array<float, 2> loss;
+
+  float dLdPam;
+  float dLdPab;
+  float dLdPbm;
+  float dLdPbb;
+  float alpha; 
+} Network;
+
+std::ostream& operator<<(std::ostream& os, const Network& net) {
+    os << "Network {\n";
+    
+    os << "  Parameters:\n";
+    os << "    pam: " << net.pam << "\n";
+    os << "    pab: " << net.pab << "\n";
+    os << "    pbm: " << net.pbm << "\n";
+    os << "    pbb: " << net.pbb << "\n";
+
+    os << "  Data Arrays:\n";
+    os << "    data:     [" << net.data[0] << ", " << net.data[1] << "]\n";
+    os << "    reluData: [" << net.reluData[0] << ", " << net.reluData[1] << "]\n";
+    os << "    softData: [" << net.softData[0] << ", " << net.softData[1] << "]\n";
+    os << "    loss:     [" << net.loss[0] << ", " << net.loss[1] << "]\n";
+
+    os << "  Gradients:\n";
+    os << "    dLdPam: " << net.dLdPam << "\n";
+    os << "    dLdPab: " << net.dLdPab << "\n";
+    os << "    dLdPbm: " << net.dLdPbm << "\n";
+    os << "    dLdPbb: " << net.dLdPbb << "\n";
+
+    os << "  Other:\n";
+    os << "    alpha: " << net.alpha << "\n";
+    
+    os << "}";
+    
+    return os;
+}
 
 std::optional<Params> processIO(int argc, char* argv[]) {
   Params params = {};
@@ -44,8 +92,16 @@ float softmax(const int points, const float* data, const int index) {
   return num / denom;
 }
 
+float leakyRelu(const float value, const float slope) {
+  return value > 0 ? value : slope * value;
+}
+
 float relu(const float value) {
-  return value > 0 ? value : 0;
+  return leakyRelu(value, 0);
+}
+
+float crossEntropyLoss(const float value) {
+  return -std::log(value);
 }
 
 std::vector<DataPoint> getTrainingPoints(std::ifstream *input_file) {
@@ -55,7 +111,7 @@ std::vector<DataPoint> getTrainingPoints(std::ifstream *input_file) {
 
   int pointIndex = 0;
 
-  while (*input_file >> training_points[pointIndex].x >> training_points[pointIndex].y >> training_points[pointIndex].a_act >> training_points[pointIndex].b_act) {
+  while (*input_file >> training_points[pointIndex]if .x >> training_points[pointIndex].y >> training_points[pointIndex].a_act >> training_points[pointIndex].b_act) {
     training_points.push_back(DataPoint{});
     pointIndex++;
   }
@@ -63,6 +119,18 @@ std::vector<DataPoint> getTrainingPoints(std::ifstream *input_file) {
   training_points.pop_back();
 
   return training_points;
+}
+
+void forwardProp(Network network, const float x) {
+  network.data = {network.pam * x + network.pab, network.pbm * x + network.pbb};
+
+  network.reluData = {leakyRelu(network.data[0], 0.01), leakyRelu(network.data[1], 0.01)};
+
+  network.softData = {softmax(2, network.reluData.data(), 0), softmax(2, network.reluData.data(), 1)};
+  
+  network.loss = {crossEntropyLoss(network.softData[0]), crossEntropyLoss(network.softData[1])};
+
+  std::cout << network << std::endl;
 }
 
 int main(int argc, char* argv[]) {
@@ -85,21 +153,17 @@ int main(int argc, char* argv[]) {
 
   std::vector<DataPoint> training_points = getTrainingPoints(&input_file);
 
-
-  float pam = 1;
-  float pab = 1;
-  
-  float pbm = 0.5;
-  float pbb = 0.5;
+  Network network = {
+    .pam = 1,
+    .pab = 1,
+    .pbm = 2,
+    .pbb = 1,
+    .alpha = 0.1
+  };
 
   float x = params.input_x;
 
-  float data[2] = {pam * x + pab, pbm * x + pbb};
-
-  float a_out = softmax(2, data, 0);
-  float b_out = softmax(2, data, 1);
-
-  std::cout << "Output: " << a_out << "   " << b_out << std::endl;
+  forwardProp(network, x);
 
   return 0;
 }
