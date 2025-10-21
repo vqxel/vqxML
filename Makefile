@@ -8,7 +8,7 @@ build:
 	g++ -std=c++23 main.cpp -o main.out
 
 run: build
-	./main.out ../data/input.txt ../data/output.txt $(ARGS)
+	./main.out ../data/input_full.txt ../data/output.txt $(ARGS)
 
 clean:
 	rm -f *.out

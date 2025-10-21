@@ -15,20 +15,26 @@ typedef struct {
 typedef struct {
   float x;
   float y;
-  float a_act;
-  float b_act;
+  float x_act;
+  float y_act;
 } DataPoint;
 
 typedef struct {
+  float x;
+
   float pam;
   float pab;
   float pbm;
   float pbb;
 
+  float leakyReluSlope;
+
   std::array<float, 2> data;
   std::array<float, 2> reluData;
   std::array<float, 2> softData;
-  std::array<float, 2> loss;
+  std::array<float, 2> expData;
+
+  float loss;
 
   float dLdPam;
   float dLdPab;
@@ -40,19 +46,24 @@ typedef struct {
 std::ostream& operator<<(std::ostream& os, const Network& net) {
     os << "Network {\n";
     
+    os << "  Inputs:\n";
+    os << "    x: " << net.x << "\n";
+
     os << "  Parameters:\n";
     os << "    pam: " << net.pam << "\n";
     os << "    pab: " << net.pab << "\n";
     os << "    pbm: " << net.pbm << "\n";
     os << "    pbb: " << net.pbb << "\n";
+    os << "    leakyReluSlope: " << net.leakyReluSlope << "\n";
 
     os << "  Data Arrays:\n";
     os << "    data:     [" << net.data[0] << ", " << net.data[1] << "]\n";
     os << "    reluData: [" << net.reluData[0] << ", " << net.reluData[1] << "]\n";
     os << "    softData: [" << net.softData[0] << ", " << net.softData[1] << "]\n";
-    os << "    loss:     [" << net.loss[0] << ", " << net.loss[1] << "]\n";
+    os << "    expData:     [" << net.expData[0] << ", " << net.expData[1] << "]\n";
 
-    os << "  Gradients:\n";
+    os << "  Backprop:\n";
+    os << "    loss:   " << net.loss << "\n";
     os << "    dLdPam: " << net.dLdPam << "\n";
     os << "    dLdPab: " << net.dLdPab << "\n";
     os << "    dLdPbm: " << net.dLdPbm << "\n";
@@ -100,8 +111,13 @@ float relu(const float value) {
   return leakyRelu(value, 0);
 }
 
-float crossEntropyLoss(const float value) {
-  return -std::log(value);
+float crossEntropyLoss(const int points, const float *exp, const float *values) {
+  float loss = 0;
+  for (int i = 0; i < points; i++) {
+    loss += exp[i] * std::log(values[i]);
+  }
+  loss *= -1;
+  return loss;
 }
 
 std::vector<DataPoint> getTrainingPoints(std::ifstream *input_file) {
@@ -111,7 +127,7 @@ std::vector<DataPoint> getTrainingPoints(std::ifstream *input_file) {
 
   int pointIndex = 0;
 
-  while (*input_file >> training_points[pointIndex]if .x >> training_points[pointIndex].y >> training_points[pointIndex].a_act >> training_points[pointIndex].b_act) {
+  while (*input_file >> training_points[pointIndex].x >> training_points[pointIndex].y >> training_points[pointIndex].x_act >> training_points[pointIndex].y_act) {
     training_points.push_back(DataPoint{});
     pointIndex++;
   }
@@ -121,16 +137,32 @@ std::vector<DataPoint> getTrainingPoints(std::ifstream *input_file) {
   return training_points;
 }
 
-void forwardProp(Network network, const float x) {
-  network.data = {network.pam * x + network.pab, network.pbm * x + network.pbb};
+void forwardProp(Network *network, const float x, const float *expData) {
+  network->x = x;
 
-  network.reluData = {leakyRelu(network.data[0], 0.01), leakyRelu(network.data[1], 0.01)};
+  network->data = {network->pam * network->x + network->pab, network->pbm * network->x + network->pbb};
 
-  network.softData = {softmax(2, network.reluData.data(), 0), softmax(2, network.reluData.data(), 1)};
-  
-  network.loss = {crossEntropyLoss(network.softData[0]), crossEntropyLoss(network.softData[1])};
+  network->reluData = {leakyRelu(network->data[0], network->leakyReluSlope), leakyRelu(network->data[1], network->leakyReluSlope)};
 
-  std::cout << network << std::endl;
+  network->softData = {softmax(2, network->reluData.data(), 0), softmax(2, network->reluData.data(), 1)};
+
+  network->expData = {expData[0], expData[1]};
+
+  network->loss = crossEntropyLoss(2, network->expData.data(), network->softData.data());
+}
+
+void calculateGradients(Network *network) {
+  network->dLdPam = network->x * (network->softData[0] - network->expData[0]);
+  network->dLdPab = network->softData[0] - network->expData[0];
+  network->dLdPbm = network->x * (network->softData[1] - network->expData[1]);
+  network->dLdPbb = network->softData[1] - network->expData[1];
+}
+
+void backprop(Network *network) {
+  network->pam -= network->dLdPam*network->alpha;
+  network->pab -= network->dLdPab*network->alpha;
+  network->pbm -= network->dLdPbm*network->alpha;
+  network->pbb -= network->dLdPbb*network->alpha;
 }
 
 int main(int argc, char* argv[]) {
@@ -158,12 +190,26 @@ int main(int argc, char* argv[]) {
     .pab = 1,
     .pbm = 2,
     .pbb = 1,
+    .leakyReluSlope = 0.01,
     .alpha = 0.1
   };
 
-  float x = params.input_x;
+  for (int i = 0; i < 200; i ++) {
+    for (DataPoint training_point : training_points) {
+      float x = training_point.x;
 
-  forwardProp(network, x);
+      float exp[2] = {training_point.x_act, training_point.y_act};
+
+      forwardProp(&network, x, exp);
+
+      calculateGradients(&network);
+
+      backprop(&network);
+
+      std::cout << network << std::endl;
+      output_file << network << std::endl;
+    }
+  }
 
   return 0;
 }
