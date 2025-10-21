@@ -41,6 +41,8 @@ typedef struct {
   float dLdPbm;
   float dLdPbb;
   float alpha; 
+
+  int epochs;
 } Network;
 
 std::ostream& operator<<(std::ostream& os, const Network& net) {
@@ -70,7 +72,8 @@ std::ostream& operator<<(std::ostream& os, const Network& net) {
     os << "    dLdPbb: " << net.dLdPbb << "\n";
 
     os << "  Other:\n";
-    os << "    alpha: " << net.alpha << "\n";
+    os << "    alpha:  " << net.alpha << "\n";
+    os << "    epochs: " << net.epochs << "\n";
     
     os << "}";
     
@@ -83,8 +86,7 @@ std::optional<Params> processIO(int argc, char* argv[]) {
   // Validate arg length
   if (argc != 4) {
     std::cout << "Not enough args. Please input input file path and output file path and input x." << std::endl;
-      return std::nullopt;
-  }
+      return std::nullopt; }
 
   params.input_data_filepath = argv[1];
   params.output_data_filepath = argv[2];
@@ -191,10 +193,11 @@ int main(int argc, char* argv[]) {
     .pbm = 2,
     .pbb = 1,
     .leakyReluSlope = 0.01,
+    .loss = 1,
     .alpha = 0.1
   };
 
-  for (int i = 0; i < 200; i ++) {
+  while (network.loss >= 0.001) {
     for (DataPoint training_point : training_points) {
       float x = training_point.x;
 
@@ -206,10 +209,14 @@ int main(int argc, char* argv[]) {
 
       backprop(&network);
 
+      network.epochs++;
+
       std::cout << network << std::endl;
       output_file << network << std::endl;
     }
   }
+
+  std::cout << "Training complete with " << network.epochs << " epochs" << std::endl;
 
   return 0;
 }
