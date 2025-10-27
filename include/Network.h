@@ -23,6 +23,8 @@ namespace vml {
     Perceptron(int inputCount);
 
     float forward(const std::vector<float> &inputs, const float leakyReluSlope);
+
+    std::vector<float> serialize();
   };
 
   class Layer {

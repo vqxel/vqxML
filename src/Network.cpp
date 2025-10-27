@@ -140,5 +140,22 @@ std::ostream& operator<<(std::ostream& os, const Network& net) {
     return os; // Always return the stream
 }
 
+#include <fstream>
+
 int main(int argv, char **argc) {
+  float f1[2] = {-187.33667, -423.43}, f2 = 0.0;
+  std::ofstream out("test2.bin",std::ios_base::binary);
+  if(out.good())
+  {
+    std::cout << "Writing floating point number: " << std::fixed << f1 << std::endl;
+    out.write(reinterpret_cast<char *>(f1),2 * sizeof(float));
+    out.close();
+  }
+  std::ifstream in("test2.bin",std::ios_base::binary);
+  if(in.good())
+  {
+    in.read((char *)&f2,2 * sizeof(float));
+    std::cout << "Reading floating point number: " << std::fixed << f2 << std::endl;
+  }
+  return 0;
 }

@@ -3,7 +3,7 @@
 all: run
 
 build:
-	g++ -std=c++23 -Iinclude src/*.cpp -o build/main.out
+	clang++ -std=c++23 -I include src/*.cpp -o build/main.out
 
 run: build
 	./build/main.out ../data/input_full.txt ../data/output.txt
