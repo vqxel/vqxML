@@ -10,19 +10,25 @@ namespace vml {
     std::vector<float> weights;
     float bias;
 
+    // Intermediate calculations for backprop (dr_o / dr_i)
+    std::vector<float> passthroughGrad;
+
+    // For final backprop (dr_o / dw) (dr_o / db = dr_o / do * do / db = dr_o / do)
     std::vector<float> weightsGrad;
     float biasGrad;
+
+    float leakyReluSlope;
 
     std::vector<float> input;
     float rawOutput;
     float reluOutput;
 
   public:
-    Perceptron(const std::vector<float> &weights, float bias);
+    Perceptron(int inputCount, float leakyReluSlope);
 
-    Perceptron(int inputCount);
+    float forward(const std::vector<float> &inputs);
 
-    float forward(const std::vector<float> &inputs, const float leakyReluSlope);
+    void populatePassthroughGrad();
 
     std::vector<float> serialize();
   };
@@ -32,10 +38,14 @@ namespace vml {
     std::vector<Perceptron> perceptrons;
     std::vector<float> output;
 
+    std::vector<float> cascadingGrad;
+
   public:
     Layer(const std::vector<Perceptron> &perceptrons);
 
     Layer(int width, int prevWidth);
+
+    void populateCascadingGrad(vml::Layer &nextLayer);
 
     int width() const;
   };

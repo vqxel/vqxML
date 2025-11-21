@@ -11,15 +11,16 @@
 
 using namespace vml;
 
-Perceptron::Perceptron(const std::vector<float> &weights, float bias): weights(weights), bias(bias), weightsGrad(weights.size(), 0.0f), biasGrad(0.0f), input(weights.size(), 0.0f), rawOutput(0.0f), reluOutput(0.0f) {
+Perceptron::Perceptron(const std::vector<float> &weights, float bias, float leakyReluSlope): weights(weights), bias(bias), weightsGrad(weights.size(), 0.0f), biasGrad(0.0f), input(weights.size(), 0.0f), rawOutput(0.0f), reluOutput(0.0f), leakyReluSlope(leakyReluSlope) {
 }
 
-Perceptron::Perceptron(int inputCount): weights(inputCount, 0.0f), bias(0.0f), weightsGrad(inputCount, 0.0f), biasGrad(0.0f), input(inputCount, 0.0f), rawOutput(0.0f), reluOutput(0.0f) {
+Perceptron::Perceptron(int inputCount): weights(inputCount, 0.0f), bias(0.0f), weightsGrad(inputCount, 0.0f), biasGrad(0.0f), input(inputCount, 0.0f), rawOutput(0.0f), reluOutput(0.0f), leakyReluSlope(1.0f) {
 }
 
 Layer::Layer(const std::vector<Perceptron> &perceptrons): perceptrons(perceptrons) {
 }
 
+// TODO: I think this perceptrons default constructor is incorrect. Double check.
 Layer::Layer(int width, int prevWidth): perceptrons(width, prevWidth) {
 }
 
@@ -49,6 +50,32 @@ float Perceptron::forward(const std::vector<float> &input, const float leakyRelu
   this->reluOutput = leakyRelu(this->rawOutput, leakyReluSlope);
 
   return this->reluOutput;
+}
+
+void Perceptron::populatePassthroughGrad() {
+  // dr_o / dr_i
+  for (int inputIndex = 0; inputIndex < input.size(); inputIndex++) {
+    // dr_o / do
+    float activationDer = rawOutput > 0 ? leakyReluSlope : 0;
+    
+    // do / dr_i
+    float linearDer = input[inputIndex];
+
+    // dr_o / dr_i
+    passthroughGrad[inputIndex] = activationDer * linearDer;
+  }
+}
+
+void Layer::populateCascadingGrad(vml::Layer &nextLayer) {
+  // TODO: Verify output (# perceptrons) == nextLayer.inputs.size() and handle error
+  for (int inputIndex = 0; inputIndex < perceptrons[0].input.size() /* TODO: properly handle input size across layer */; inputIndex++) {
+
+    cascadingGrad.emplace_back(0);
+    for (int perceptronIndex = 0; perceptronIndex < perceptrons.size(); perceptronIndex++) {
+      // Cascading grad for this input = dr_o / dr_i * nextLayer.cascadingGrad.forThisOutput
+      cascadingGrad[inputIndex] += perceptrons[perceptronIndex].passthroughGrad[inputIndex] * nextLayer.cascadingGrad[perceptronIndex];
+    }
+  }
 }
 
 std::vector<float> Network::forwardProp(const std::vector<float> &input, const std::vector<float> &expectedData) {
@@ -140,6 +167,7 @@ std::ostream& operator<<(std::ostream& os, const Network& net) {
     return os; // Always return the stream
 }
 
+/*
 #include <fstream>
 
 int main(int argv, char **argc) {
@@ -159,3 +187,4 @@ int main(int argv, char **argc) {
   }
   return 0;
 }
+*/
