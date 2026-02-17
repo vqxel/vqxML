@@ -46,4 +46,8 @@ namespace vml {
 
     return std::inner_product(v1.begin(), v1.end(), v2.begin(), 0.0);
   }
+
+  float sumVec(const std::vector<float>& v) {
+    return std::accumulate(v.begin(), v.end(), 0.0f);
+  }
 }
